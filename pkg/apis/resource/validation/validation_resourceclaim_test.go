@@ -324,8 +324,12 @@ func TestValidateClaimStatusUpdate(t *testing.T) {
 	validAllocatedClaim.Status = resource.ResourceClaimStatus{
 		DriverName: "valid",
 		Allocation: &resource.AllocationResult{
-			ResourceHandle: strings.Repeat(" ", resource.ResourceHandleMaxSize),
-			Shareable:      true,
+			ResourceHandles: []resource.ResourceHandle{
+				{
+					Data: strings.Repeat(" ", resource.ResourceHandleDataMaxSize),
+				},
+			},
+			Shareable: true,
 		},
 	}
 
@@ -359,18 +363,26 @@ func TestValidateClaimStatusUpdate(t *testing.T) {
 			update: func(claim *resource.ResourceClaim) *resource.ResourceClaim {
 				claim.Status.DriverName = "valid"
 				claim.Status.Allocation = &resource.AllocationResult{
-					ResourceHandle: strings.Repeat(" ", resource.ResourceHandleMaxSize),
+					ResourceHandles: []resource.ResourceHandle{
+						{
+							Data: strings.Repeat(" ", resource.ResourceHandleDataMaxSize),
+						},
+					},
 				}
 				return claim
 			},
 		},
 		"invalid-allocation-handle": {
-			wantFailures: field.ErrorList{field.TooLongMaxLength(field.NewPath("status", "allocation", "resourceHandle"), resource.ResourceHandleMaxSize+1, resource.ResourceHandleMaxSize)},
+			wantFailures: field.ErrorList{field.TooLongMaxLength(field.NewPath("status", "allocation", "resourceHandles[0]", "data"), resource.ResourceHandleDataMaxSize+1, resource.ResourceHandleDataMaxSize)},
 			oldClaim:     validClaim,
 			update: func(claim *resource.ResourceClaim) *resource.ResourceClaim {
 				claim.Status.DriverName = "valid"
 				claim.Status.Allocation = &resource.AllocationResult{
-					ResourceHandle: strings.Repeat(" ", resource.ResourceHandleMaxSize+1),
+					ResourceHandles: []resource.ResourceHandle{
+						{
+							Data: strings.Repeat(" ", resource.ResourceHandleDataMaxSize+1),
+						},
+					},
 				}
 				return claim
 			},

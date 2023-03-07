@@ -37,6 +37,10 @@ var validateResourceClaimTemplateName = apimachineryvalidation.NameIsDNSSubdomai
 // the allowed values are exactly the same.
 var validateResourceDriverName = corevalidation.ValidateCSIDriverName
 
+// validateKubeletPluginName reuses the validation of a CSI driver because
+// the allowed values are exactly the same.
+var validateKubeletPluginName = corevalidation.ValidateCSIDriverName
+
 // ValidateClaim validates a ResourceClaim.
 func ValidateClaim(resourceClaim *resource.ResourceClaim) field.ErrorList {
 	allErrs := corevalidation.ValidateObjectMeta(&resourceClaim.ObjectMeta, true, validateResourceClaimName, field.NewPath("metadata"))
@@ -185,12 +189,32 @@ func ValidateClaimStatusUpdate(resourceClaim, oldClaim *resource.ResourceClaim) 
 func validateAllocationResult(allocation *resource.AllocationResult, fldPath *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
 	if allocation != nil {
-		if len(allocation.ResourceHandle) > resource.ResourceHandleMaxSize {
-			allErrs = append(allErrs, field.TooLongMaxLength(fldPath.Child("resourceHandle"), len(allocation.ResourceHandle), resource.ResourceHandleMaxSize))
+		if len(allocation.ResourceHandles) > 0 {
+			allErrs = append(allErrs, validateResourceHandles(allocation.ResourceHandles, resource.ResourceHandlesMaxSize, fldPath.Child("resourceHandles"))...)
 		}
 		if allocation.AvailableOnNodes != nil {
 			allErrs = append(allErrs, corevalidation.ValidateNodeSelector(allocation.AvailableOnNodes, fldPath.Child("availableOnNodes"))...)
 		}
+	}
+	return allErrs
+}
+
+func validateResourceHandles(resourceHandles []resource.ResourceHandle, maxSize int, fldPath *field.Path) field.ErrorList {
+	var allErrs field.ErrorList
+	for i, resourceHandle := range resourceHandles {
+		idxPath := fldPath.Index(i)
+		if len(resourceHandle.KubeletPluginName) > 0 {
+			allErrs = append(allErrs, validateKubeletPluginName(resourceHandle.KubeletPluginName, idxPath.Child("kubeletPluginName"))...)
+		}
+		if len(resourceHandle.Data) > resource.ResourceHandleDataMaxSize {
+			allErrs = append(allErrs, field.TooLongMaxLength(idxPath.Child("data"), len(resourceHandle.Data), resource.ResourceHandleDataMaxSize))
+		}
+	}
+	if len(resourceHandles) > maxSize {
+		// Dumping the entire field into the error message is likely to be too long,
+		// in particular when it is already beyond the maximum size. Instead this
+		// just shows the number of entries.
+		allErrs = append(allErrs, field.TooLongMaxLength(fldPath, len(resourceHandles), maxSize))
 	}
 	return allErrs
 }
