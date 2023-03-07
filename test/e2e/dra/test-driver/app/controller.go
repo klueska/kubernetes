@@ -223,7 +223,11 @@ func (c *ExampleController) allocate(ctx context.Context, claim *resourcev1alpha
 	if err != nil {
 		return nil, fmt.Errorf("encode parameters: %w", err)
 	}
-	allocation.ResourceHandle = string(data)
+	allocation.ResourceHandles = []resourcev1alpha2.ResourceHandle{
+		{
+			Data: string(data),
+		},
+	}
 	var nodes []string
 	if node != "" {
 		nodes = append(nodes, node)
