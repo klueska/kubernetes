@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	resourcev1alpha2 "k8s.io/api/resource/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -105,33 +106,48 @@ func (m *ManagerImpl) PrepareResources(pod *v1.Pod) error {
 						pod.Name, pod.UID, podResourceClaim.Name, resourceClaim.UID)
 				}
 
-				// Call NodePrepareResource RPC
-				driverName := resourceClaim.Status.DriverName
-
-				client, err := dra.NewDRAPluginClient(driverName)
-				if err != nil {
-					return fmt.Errorf("failed to get DRA Plugin client for plugin name %s, err=%+v", driverName, err)
+				resourceHandles := resourceClaim.Status.Allocation.ResourceHandles
+				if len(resourceHandles) == 0 {
+					resourceHandles = []resourcev1alpha2.ResourceHandle{{KubeletPluginName: resourceClaim.Status.DriverName}}
 				}
 
-				response, err := client.NodePrepareResource(
-					context.Background(),
-					resourceClaim.Namespace,
-					resourceClaim.UID,
-					resourceClaim.Name,
-					resourceClaim.Status.Allocation.ResourceHandle)
-				if err != nil {
-					return fmt.Errorf("NodePrepareResource failed, claim UID: %s, claim name: %s, resource handle: %s, err: %+v",
-						resourceClaim.UID, resourceClaim.Name, resourceClaim.Status.Allocation.ResourceHandle, err)
-				}
+				var cdiDevices []string
+				var cdiAnnotations []kubecontainer.Annotation
+				for _, resourceHandle := range resourceHandles {
+					// Call NodePrepareResource RPC for each AllocationResult
+					pluginName := resourceHandle.KubeletPluginName
+					if pluginName == "" {
+						pluginName = resourceClaim.Status.DriverName
+					}
 
-				klog.V(3).InfoS("NodePrepareResource succeeded", "response", response)
+					client, err := dra.NewDRAPluginClient(pluginName)
+					if err != nil {
+						return fmt.Errorf("failed to get DRA Plugin client for plugin name %s, err=%+v", pluginName, err)
+					}
 
-				// NOTE: Passing CDI device names as annotations is a temporary solution
-				// It will be removed after all runtimes are updated
-				// to get CDI device names from the ContainerConfig.CDIDevices field
-				annotations, err := generateCDIAnnotations(resourceClaim.UID, driverName, response.CdiDevices)
-				if err != nil {
-					return fmt.Errorf("failed to generate container annotations, err: %+v", err)
+					response, err := client.NodePrepareResource(
+						context.Background(),
+						resourceClaim.Namespace,
+						resourceClaim.UID,
+						resourceClaim.Name,
+						resourceHandle.Data)
+					if err != nil {
+						return fmt.Errorf("NodePrepareResource failed, claim UID: %s, claim name: %s, resource handle: %s, err: %+v",
+							resourceClaim.UID, resourceClaim.Name, resourceHandle.Data, err)
+					}
+
+					klog.V(3).InfoS("NodePrepareResource succeeded", "pluginName", pluginName, "response", response)
+
+					// NOTE: Passing CDI device names as annotations is a temporary solution
+					// It will be removed after all runtimes are updated
+					// to get CDI device names from the ContainerConfig.CDIDevices field
+					annotations, err := generateCDIAnnotations(resourceClaim.UID, pluginName, response.CdiDevices)
+					if err != nil {
+						return fmt.Errorf("failed to generate container annotations, err: %+v", err)
+					}
+
+					cdiDevices = append(cdiDevices, response.CdiDevices...)
+					cdiAnnotations = append(cdiAnnotations, annotations...)
 				}
 
 				// Cache prepared resource
@@ -139,13 +155,13 @@ func (m *ManagerImpl) PrepareResources(pod *v1.Pod) error {
 					resourceClaim.Name,
 					resourceClaim.Namespace,
 					&claimInfo{
-						driverName:  driverName,
+						driverName:  resourceClaim.Status.DriverName,
 						claimUID:    resourceClaim.UID,
 						claimName:   resourceClaim.Name,
 						namespace:   resourceClaim.Namespace,
 						podUIDs:     sets.New(string(pod.UID)),
-						cdiDevices:  response.CdiDevices,
-						annotations: annotations,
+						cdiDevices:  cdiDevices,
+						annotations: cdiAnnotations,
 					})
 				if err != nil {
 					return fmt.Errorf(
