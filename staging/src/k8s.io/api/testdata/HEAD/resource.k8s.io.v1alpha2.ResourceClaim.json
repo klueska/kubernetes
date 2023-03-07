@@ -55,7 +55,12 @@
   "status": {
     "driverName": "driverNameValue",
     "allocation": {
-      "resourceHandle": "resourceHandleValue",
+      "ResourceHandles": [
+        {
+          "kubeletPluginName": "kubeletPluginNameValue",
+          "data": "dataValue"
+        }
+      ],
       "availableOnNodes": {
         "nodeSelectorTerms": [
           {

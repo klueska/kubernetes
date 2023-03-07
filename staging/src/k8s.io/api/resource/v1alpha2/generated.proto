@@ -31,19 +31,24 @@ option go_package = "k8s.io/api/resource/v1alpha2";
 
 // AllocationResult contains attributed of an allocated resource.
 message AllocationResult {
-  // ResourceHandle contains arbitrary data returned by the driver after a
-  // successful allocation. This is opaque for
-  // Kubernetes. Driver documentation may explain to users how to
-  // interpret this data if needed.
+  // ResourceHandles contains a set of distinct ResourceHandles, each of which
+  // is intended for processing by a different kubelet plugin. The data
+  // contained in each handle is returned by the driver after a successful
+  // allocation. This is opaque to Kubernetes. Driver documentation may
+  // explain to users how to interpret this data if needed.
   //
-  // The maximum size of this field is 16KiB. This may get
-  // increased in the future, but not reduced.
+  // Setting this field is optional. If null (or empty), it is assumed this
+  // AllocationRequest will be processed by a single kubelet plugin with no
+  // ResourceHandle data attached. The name of the kubelet plugin invoked
+  // will match the DriverName set in the ResourceClaimStatus this
+  // AllocationResult is embedded in.
   // +optional
-  optional string resourceHandle = 1;
+  // +listType=atomic
+  repeated ResourceHandle resourceHandles = 4;
 
-  // This field will get set by the resource driver after it has
-  // allocated the resource driver to inform the scheduler where it can
-  // schedule Pods using the ResourceClaim.
+  // This field will get set by the resource driver after it has allocated
+  // the resource to inform the scheduler where it can schedule Pods using
+  // the ResourceClaim.
   //
   // Setting this field is optional. If null, the resource is available
   // everywhere.
@@ -235,9 +240,9 @@ message ResourceClaimStatus {
   // +optional
   optional string driverName = 1;
 
-  // Allocation is set by the resource driver once a resource has been
-  // allocated successfully. If this is not specified, the resource is
-  // not yet allocated.
+  // Allocation is set by the resource driver once a (set of) resources has
+  // been allocated successfully. If this is not specified, the resources
+  // have not been allocated yet.
   // +optional
   optional AllocationResult allocation = 2;
 
@@ -368,5 +373,24 @@ message ResourceClassParametersReference {
   // resources.
   // +optional
   optional string namespace = 4;
+}
+
+// ResourceHandle holds opaque resource data destined for a specific kubelet plugin.
+message ResourceHandle {
+  // KubeletPluginName specifies the name of the kubelet plugin which should
+  // be invoked to process this ResourceHandle. If this field is not set,
+  // the kubelet plugin with the same name as the DriverName from the
+  // ResourceClaimStatus this ResourceHandle is embedded in will be invoked.
+  // +optional
+  optional string kubeletPluginName = 1;
+
+  // Data contains the opaque data associated with this ResourceHandle. It is
+  // set by the driver at allocation time, and is intended for processing by
+  // the kubelet plugin whose name matches KubeletPluginName.
+  //
+  // The maximum size of this field is 16KiB. This may get
+  // increased in the future, but not reduced.
+  // +optional
+  optional string data = 2;
 }
 

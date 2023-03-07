@@ -29,8 +29,8 @@ package v1alpha2
 // AUTO-GENERATED FUNCTIONS START HERE. DO NOT EDIT.
 var map_AllocationResult = map[string]string{
 	"":                 "AllocationResult contains attributed of an allocated resource.",
-	"resourceHandle":   "ResourceHandle contains arbitrary data returned by the driver after a successful allocation. This is opaque for Kubernetes. Driver documentation may explain to users how to interpret this data if needed.\n\nThe maximum size of this field is 16KiB. This may get increased in the future, but not reduced.",
-	"availableOnNodes": "This field will get set by the resource driver after it has allocated the resource driver to inform the scheduler where it can schedule Pods using the ResourceClaim.\n\nSetting this field is optional. If null, the resource is available everywhere.",
+	"ResourceHandles":  "ResourceHandles contains a set of distinct ResourceHandles, each of which is intended for processing by a different kubelet plugin. The data contained in each handle is returned by the driver after a successful allocation. This is opaque to Kubernetes. Driver documentation may explain to users how to interpret this data if needed.\n\nSetting this field is optional. If null (or empty), it is assumed this AllocationRequest will be processed by a single kubelet plugin with no ResourceHandle data attached. The name of the kubelet plugin invoked will match the DriverName set in the ResourceClaimStatus this AllocationResult is embedded in.",
+	"availableOnNodes": "This field will get set by the resource driver after it has allocated the resource to inform the scheduler where it can schedule Pods using the ResourceClaim.\n\nSetting this field is optional. If null, the resource is available everywhere.",
 	"shareable":        "Shareable determines whether the resource supports more than one consumer at a time.",
 }
 
@@ -146,7 +146,7 @@ func (ResourceClaimSpec) SwaggerDoc() map[string]string {
 var map_ResourceClaimStatus = map[string]string{
 	"":                      "ResourceClaimStatus tracks whether the resource has been allocated and what the resulting attributes are.",
 	"driverName":            "DriverName is a copy of the driver name from the ResourceClass at the time when allocation started.",
-	"allocation":            "Allocation is set by the resource driver once a resource has been allocated successfully. If this is not specified, the resource is not yet allocated.",
+	"allocation":            "Allocation is set by the resource driver once a (set of) resources has been allocated successfully. If this is not specified, the resources have not been allocated yet.",
 	"reservedFor":           "ReservedFor indicates which entities are currently allowed to use the claim. A Pod which references a ResourceClaim which is not reserved for that Pod will not be started.\n\nThere can be at most 32 such reservations. This may get increased in the future, but not reduced.",
 	"deallocationRequested": "DeallocationRequested indicates that a ResourceClaim is to be deallocated.\n\nThe driver then must deallocate this claim and reset the field together with clearing the Allocation field.\n\nWhile DeallocationRequested is set, no new consumers may be added to ReservedFor.",
 }
@@ -217,6 +217,16 @@ var map_ResourceClassParametersReference = map[string]string{
 
 func (ResourceClassParametersReference) SwaggerDoc() map[string]string {
 	return map_ResourceClassParametersReference
+}
+
+var map_ResourceHandle = map[string]string{
+	"":                  "ResourceHandle holds opaque resource data destined for a specific kubelet plugin.",
+	"kubeletPluginName": "KubeletPluginName specifies the name of the kubelet plugin which should be invoked to process this ResourceHandle. If this field is not set, the kubelet plugin with the same name as the DriverName from the ResourceClaimStatus this ResourceHandle is embedded in will be invoked.",
+	"data":              "Data contains the opaque data associated with this ResourceHandle. It is set by the driver at allocation time, and is intended for processing by the kubelet plugin whose name matches KubeletPluginName.\n\nThe maximum size of this field is 16KiB. This may get increased in the future, but not reduced.",
+}
+
+func (ResourceHandle) SwaggerDoc() map[string]string {
+	return map_ResourceHandle
 }
 
 // AUTO-GENERATED FUNCTIONS END HERE

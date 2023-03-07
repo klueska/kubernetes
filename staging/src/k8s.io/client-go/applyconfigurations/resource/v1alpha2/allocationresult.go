@@ -25,7 +25,6 @@ import (
 // AllocationResultApplyConfiguration represents an declarative configuration of the AllocationResult type for use
 // with apply.
 type AllocationResultApplyConfiguration struct {
-	ResourceHandle   *string                            `json:"resourceHandle,omitempty"`
 	AvailableOnNodes *v1.NodeSelectorApplyConfiguration `json:"availableOnNodes,omitempty"`
 	Shareable        *bool                              `json:"shareable,omitempty"`
 }
@@ -34,14 +33,6 @@ type AllocationResultApplyConfiguration struct {
 // apply.
 func AllocationResult() *AllocationResultApplyConfiguration {
 	return &AllocationResultApplyConfiguration{}
-}
-
-// WithResourceHandle sets the ResourceHandle field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ResourceHandle field is set to the value of the last call.
-func (b *AllocationResultApplyConfiguration) WithResourceHandle(value string) *AllocationResultApplyConfiguration {
-	b.ResourceHandle = &value
-	return b
 }
 
 // WithAvailableOnNodes sets the AvailableOnNodes field in the declarative configuration to the given value

@@ -41,6 +41,9 @@ spec:
   resourceClassName: resourceClassNameValue
 status:
   allocation:
+    ResourceHandles:
+    - data: dataValue
+      kubeletPluginName: kubeletPluginNameValue
     availableOnNodes:
       nodeSelectorTerms:
       - matchExpressions:
@@ -53,7 +56,6 @@ status:
           operator: operatorValue
           values:
           - valuesValue
-    resourceHandle: resourceHandleValue
     shareable: true
   deallocationRequested: true
   driverName: driverNameValue
