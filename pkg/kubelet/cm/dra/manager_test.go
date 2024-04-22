@@ -31,6 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	resourcev1alpha2 "k8s.io/api/resource/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/dynamic-resource-allocation/resourceclaim"
@@ -295,7 +296,8 @@ func TestGetResources(t *testing.T) {
 			assert.NoError(t, err)
 
 			if test.claimInfo != nil {
-				manager.cache.add(test.claimInfo)
+				err = manager.cache.add(test.claimInfo)
+				assert.NoError(t, err)
 			}
 
 			containerInfo, err := manager.GetResources(test.pod, test.container)
@@ -839,15 +841,12 @@ func TestPrepareResources(t *testing.T) {
 			},
 			claimInfo: &ClaimInfo{
 				ClaimInfoState: state.ClaimInfoState{
-					DriverName: driverName,
-					ClassName:  "test-class",
-					ClaimName:  "test-pod-claim",
-					ClaimUID:   "test-reserved",
-					Namespace:  "test-namespace",
-					PodUIDs:    sets.Set[string]{"test-reserved": sets.Empty{}},
-					CDIDevices: map[string][]string{
-						driverName: {fmt.Sprintf("%s/%s=some-device", driverName, driverClassName)},
-					},
+					DriverName:      driverName,
+					ClassName:       "test-class",
+					ClaimName:       "test-pod-claim",
+					ClaimUID:        "test-reserved",
+					Namespace:       "test-namespace",
+					PodUIDs:         sets.Set[string]{"test-reserved": sets.Empty{}},
 					ResourceHandles: []resourcev1alpha2.ResourceHandle{{Data: "test-data"}},
 				},
 				annotations: make(map[string][]kubecontainer.Annotation),
@@ -919,7 +918,8 @@ func TestPrepareResources(t *testing.T) {
 			defer plg.DeRegisterPlugin(test.driverName) // for sake of next tests
 
 			if test.claimInfo != nil {
-				manager.cache.add(test.claimInfo)
+				err = manager.cache.add(test.claimInfo)
+				assert.NoError(t, err)
 			}
 
 			err = manager.PrepareResources(test.pod)
@@ -940,8 +940,8 @@ func TestPrepareResources(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			claimInfo := manager.cache.get(*claimName, test.pod.Namespace)
-			if claimInfo == nil {
+			claimInfo, ok := manager.cache.get(*claimName, test.pod.Namespace)
+			if !ok {
 				t.Fatalf("claimInfo not found in cache for claim %s", *claimName)
 			}
 			if claimInfo.DriverName != test.resourceClaim.Status.DriverName {
@@ -1295,7 +1295,8 @@ func TestUnprepareResources(t *testing.T) {
 			}
 
 			if test.claimInfo != nil {
-				manager.cache.add(test.claimInfo)
+				err = manager.cache.add(test.claimInfo)
+				assert.NoError(t, err)
 			}
 
 			err = manager.UnprepareResources(test.pod)
@@ -1316,8 +1317,7 @@ func TestUnprepareResources(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			claimInfo := manager.cache.get(*claimName, test.pod.Namespace)
-			if claimInfo != nil {
+			if manager.cache.contains(*claimName, test.pod.Namespace) {
 				t.Fatalf("claimInfo still found in cache after calling UnprepareResources")
 			}
 		})
@@ -1337,16 +1337,22 @@ func TestPodMightNeedToUnprepareResources(t *testing.T) {
 		cache:      cache,
 	}
 
-	podUID := sets.Set[string]{}
-	podUID.Insert("test-pod-uid")
-	manager.cache.add(&ClaimInfo{
-		ClaimInfoState: state.ClaimInfoState{PodUIDs: podUID, ClaimName: "test-claim", Namespace: "test-namespace"},
+	claimName := "test-claim"
+	podUID := "test-pod-uid"
+	namespace := "test-namespace"
+
+	err = manager.cache.add(&ClaimInfo{
+		ClaimInfoState: state.ClaimInfoState{PodUIDs: sets.New(podUID), ClaimName: claimName, Namespace: namespace},
 	})
+	assert.NoError(t, err)
 
-	testClaimInfo := manager.cache.get("test-claim", "test-namespace")
-	testClaimInfo.addPodReference("test-pod-uid")
-
-	manager.PodMightNeedToUnprepareResources("test-pod-uid")
+	if !manager.cache.contains(claimName, namespace) {
+		t.Fatalf("failed to get claimInfo from cache for claim name %s, namespace %s: err:%v", claimName, namespace, err)
+	}
+	if err = manager.cache.addPodReference(claimName, namespace, types.UID(podUID)); err != nil {
+		t.Fatalf("claim %s: failed to reference pod UID %s: %v", claimName, podUID, err)
+	}
+	manager.PodMightNeedToUnprepareResources(types.UID(podUID))
 }
 
 func TestGetContainerClaimInfos(t *testing.T) {
@@ -1415,7 +1421,8 @@ func TestGetContainerClaimInfos(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
-			manager.cache.add(test.claimInfo)
+			err := manager.cache.add(test.claimInfo)
+			assert.NoError(t, err)
 
 			fakeClaimInfos, err := manager.GetContainerClaimInfos(test.pod, test.container)
 			assert.NoError(t, err)
